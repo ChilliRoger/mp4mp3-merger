@@ -2,11 +2,19 @@ from flask import Flask, render_template, request, send_file
 from moviepy.editor import VideoFileClip, AudioFileClip
 import os
 import uuid
+import logging
 
 app = Flask(__name__)
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Set max file upload (e.g., 100MB)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+
+# Ensure static directories exist
+os.makedirs("static/merged", exist_ok=True)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -45,10 +53,15 @@ def index():
             os.remove(audio_path)
 
             return send_file(output_path, as_attachment=True)
-        except Exception:
-            for path in [locals().get('video_path'), locals().get('audio_path')]:
+        except Exception as e:
+            logger.error(f"Error processing files: {str(e)}", exc_info=True)
+            # Cleanup any created files
+            for path in [locals().get('video_path'), locals().get('audio_path'), locals().get('output_path')]:
                 if path and os.path.exists(path):
-                    os.remove(path)
+                    try:
+                        os.remove(path)
+                    except Exception as cleanup_error:
+                        logger.error(f"Error cleaning up file {path}: {str(cleanup_error)}")
             return render_template("index.html")
 
     return render_template("index.html")
